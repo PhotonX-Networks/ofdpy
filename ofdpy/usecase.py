@@ -9,6 +9,26 @@ packet switch
 import ofdpa
 
 
+def one_way_bridge(ofdpa_instance, dummy_vlan, ofdpa_id_in,
+                   (mac_out, ofdpa_id_out)):
+    # Assign a VLAN tag to the unsigned packet from ofdpa_id_in
+    ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, ofdpa_id_in, dummy_vlan)
+    ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
+                                                         ofdpa_id_in,
+                                                         dummy_vlan)
+    # Create an l2 output group that pops the vlan tag on leaving the switch
+    l2_interface_group = ofdpa.L2_Interface_Group(ofdpa_instance,
+                                                  ofdpa_id_out,
+                                                  dummy_vlan,
+                                                  pop_vlan=True)
+    # Bridge packets with a dest mac_out to the previously specified port
+    ofdpa.Bridging_Unicast_VLAN_Bridging_Flow(ofdpa_instance,
+                                              dummy_vlan,
+                                              mac_out,
+                                              l2_interface_group)
+    return l2_interface_group
+
+
 # Modification of the use case as found in OF-DPA GitHub documentation
 # /doc/html/d4/d95/OFDPA_CLIENT_EXAMPLES.html
 def bridging(ofdpa_instance, dummy_vlan,
@@ -18,36 +38,15 @@ def bridging(ofdpa_instance, dummy_vlan,
     Bridges two clients not on a vlan together by adding a dummy VLAN tag, and
     removing the tag before the packet leaves the switch.
     """
-    # Assign a VLAN tag to the unsigned packet from mac_1
-    ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, ofdpa_id_1, dummy_vlan)
-    ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
-                                                         ofdpa_id_1,
-                                                         dummy_vlan)
-    # Create an l2 output group that pops the vlan tag on leaving the switch
-    l2_interface_group_1 = ofdpa.L2_Interface_Group(ofdpa_instance,
-                                                    ofdpa_id_2,
-                                                    dummy_vlan,
-                                                    pop_vlan=True)
-    # Bridge packets with a dest mac_2 to the previously specified port
-    ofdpa.Bridging_Unicast_VLAN_Bridging_Flow(ofdpa_instance,
-                                              dummy_vlan,
-                                              mac_2,
-                                              l2_interface_group_1)
-    # Assign a VLAN tag to the unsigned packet from mac_2
-    ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, ofdpa_id_2, dummy_vlan)
-    ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
-                                                         ofdpa_id_2,
-                                                         dummy_vlan)
-    # Create an l2 output group that pops the vlan tag on leaving the switch
-    l2_interface_group_2 = ofdpa.L2_Interface_Group(ofdpa_instance,
-                                                    ofdpa_id_1,
-                                                    dummy_vlan,
-                                                    pop_vlan=True)
-    # Bridge packets with dest mac_1 to the previously specified port
-    ofdpa.Bridging_Unicast_VLAN_Bridging_Flow(ofdpa_instance,
-                                              dummy_vlan,
-                                              mac_1,
-                                              l2_interface_group_2)
+    l2_interface_group_1 = one_way_bridge(ofdpa_instance,
+                                          dummy_vlan,
+                                          ofdpa_id_1,
+                                          (mac_2, ofdpa_id_2))
+    l2_interface_group_2 = one_way_bridge(ofdpa_instance,
+                                          dummy_vlan,
+                                          ofdpa_id_2,
+                                          (mac_1, ofdpa_id_1))
+
     return [l2_interface_group_1, l2_interface_group_2]
 
 
