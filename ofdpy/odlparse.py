@@ -18,132 +18,152 @@ import os
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def convert_action(action):
+    logger.debug("decoding action\n" + str(action))
+    action_dict = {}
+    if action.__class__ == parser.OFPActionOutput:
+        action_dict["output-action"] = {"max-length": action.max_len,
+                                        "output-node-connector": action.port}
+    elif action.__class__ == parser.OFPActionGroup:
+        action_dict["group-action"] = {"group-id": action.group_id}
+    elif action.__class__ == parser.OFPActionSetField:
+        setfield_dict = action_dict["set-field"] = {}
+        if action.key == "vlan_vid":
+            setfield_dict["vlan-match"] = {}
+            if action.value.__class__ == tuple:
+                id_ = action.value[0] & action.value[1]
+            else:
+                id_ = action.value
+            setfield_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
+            if (id_ & 0xF000 == 0x1000):
+                setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
+            elif (id_ & 0xF000 == 0x0000):
+                setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
+            else:
+                logger.exception("Invalid VLAN Id")
+        else:
+            raise Exception("Unknown field")
+    elif action.__class__ == parser.OFPActionPopVlan:
+        action_dict = {"pop-vlan-action": {}}
+
+    else:
+        raise Exception("Unknown action")
+    logger.debug("decoded action\n" + str(action_dict) + "\n")
+    return action_dict
+
+
+def convert_match(match):
+    logger.debug("decoding match\n" + str(match))
+    match_dict = {}
+    if match[0] == "in_port":
+        match_dict["in-port"] = match[1]
+
+    elif match[0] == "vlan_vid":
+        match_dict["vlan-match"] = {}
+        if match[1].__class__ == tuple:
+            id_ = match[1][0] & match[1][1]
+        else:
+            id_ = match[1]
+        match_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
+        if (id_ & 0xF000 == 0x1000):
+            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
+        elif (id_ & 0xF000 == 0x0000):
+            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
+        else:
+            logger.exception("Invalid VLAN Id")
+
+    elif match[0] == "eth_dst":
+        match_dict["ethernet-match"] = {}
+        match_dict["ethernet-match"]["ethernet-destination"] = {"address":
+                                                                match[1]}
+    else:
+        raise Exception("Unknown match field")
+    logger.debug("decoded match\n" + str(match_dict) + "\n")
+    return match_dict
+
+
+def convert_instructions(instructions):
+    instruction_list = []
+    logger.debug("decoding instructions\n" + str(instructions) + "\n")
+    for i, instruction in enumerate(instructions):
+        temp_ = {"order": i}
+        instruction_dict = temp_.copy()
+        instruction_dict.update(convert_instruction(instruction))
+        instruction_list.append(instruction_dict)
+    logger.debug("decoded instructions\n" + str(instruction_dict) + "\n")
+    return instruction_list
+
+
+def convert_instruction(instruction):
+    logger.debug("decoding instruction\n" + str(instruction))
+    instruction_dict = {}
+    if instruction.__class__ == parser.OFPInstructionGotoTable:
+            instruction_dict["go-to-table"] = {}
+            instruction_dict["go-to-table"]["table_id"] = instruction.table_id
+
+    elif instruction.__class__ == parser.OFPInstructionActions:
+        for action in instruction.actions:
+            action_dict = convert_action(action)
+
+        if instruction.type == ofproto.OFPIT_WRITE_ACTIONS:
+            instruction_dict["write-actions"] = {}
+            instruction_dict["write-actions"]["action"] = {"order": 0}
+            instruction_dict["write-actions"]["action"].update(action_dict)
+
+        elif instruction.type == ofproto.OFPIT_APPLY_ACTIONS:
+            instruction_dict["apply-actions"] = {}
+            instruction_dict["apply-actions"]["action"] = {"order": 0}
+            instruction_dict["apply-actions"]["action"].update(action_dict)
+
+        else:
+            raise Exception("Not implemented yet")
+    else:
+        raise Exception("Unknown instruction")
+    result = {"instruction": instruction_dict}
+    logger.debug("decoded instruction\n" + str(result) + "\n")
+    return result
+
+
 class OpenDaylight: 
     def __init__(self, ip, node="openflow:55930", port="8181", xml_path=""):
         self.ip = ip
         self.node = node
         self.port = port
-        # All flows in ODL should have a unique ID, so we need to track IDs used. 
-        # This is the simpelest way to do this
+        # All flows in ODL should have a unique ID, so we need to track IDs
+        # used. This is the simpelest way to do this
         self.highest_unused_id = 0
-        shutil.rmtree("./ODL", ignore_errors = True)
+        shutil.rmtree("./ODL", ignore_errors=True)
         os.mkdir("./ODL")
         self.msgs = []
-        
-    def convert_action(self, action):
-        action_dict = {}
-        if action.__class__ == parser.OFPActionOutput:
-            action_dict["output-action"] = {"max-length": action.max_len, 
-                                            "output-node-connector": action.port}  
-        elif action.__class__ == parser.OFPActionGroup:
-            action_dict["group-action"] = {"group-id": action.group_id}
-        elif action.__class__ == parser.OFPActionSetField:
-            setfield_dict = action_dict["set-field"] = {}
-            if action.key == "vlan_vid":
-                setfield_dict["vlan-match"] = {}
-                if action.value.__class__ == tuple:
-                    id_ = action.value[0] & action.value[1]
-                else:
-                    id_ = action.value
-                setfield_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
-                if (id_ & 0xF000 == 0x1000):
-                    setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
-                elif (id_ & 0xF000 == 0x0000):
-                    setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
-                else:
-                    logger.exception("Invalid VLAN Id")
-            else:
-                raise Exception("Unknown field")
-        elif action.__class__ == parser.OFPActionPopVlan:
-            action_dict = {"pop-vlan-action": {}}
-        
-        else:
-            raise Exception("Unknown action")
-        return action_dict
-            
+
+
     def convert_msg(self, msg):
-        logger.debug("received message \n" + str(msg))
+        logger.info("received message \n" + str(msg) + "\n")
         if msg.__class__ == parser.OFPFlowMod:
-            #json_dict = {"flow": {}}
             flow_dict = {}
             flow_dict["idle-timeout"] = msg.idle_timeout
             flow_dict["cookie_mask"] = msg.cookie_mask
             flow_dict["id"] = self.highest_unused_id
-            self.highest_unused_id +=1
+            self.highest_unused_id += 1
             flow_dict["priority"] = msg.priority
             flow_dict["table_id"] = msg.table_id
             flow_dict["hard-timeout"] = msg.hard_timeout
-            
-            flow_dict["instructions"] = {}
-            
+
             ###################################################################
             # Instructions                                                    #
             ###################################################################
-            instruct_list = flow_dict["instructions"] = []
-            logger.debug("decoding instructions\n" + str(msg.instructions))
-            for i, instruction in enumerate(msg.instructions):
-                logger.debug("instruction " + str(i) + "\n" + str(instruction))
-                instruct_dict = {"order": i}
-                if instruction.__class__ == parser.OFPInstructionGotoTable:
-                    instruct_dict["go-to-table"] = {}
-                    instruct_dict["go-to-table"]["table_id"] = instruction.table_id
-                    
-                elif instruction.__class__ == parser.OFPInstructionActions:
-                    logger.debug("decoding actions\n" + str(instruction.actions))
-                    for action in instruction.actions:
-                        logger.debug("action\n" + str(action))
-                        action_dict = self.convert_action(action)
-                            
-                    if instruction.type == ofproto.OFPIT_WRITE_ACTIONS:                    
-                        instruct_dict["write-actions"] = {}
-                        instruct_dict["write-actions"]["action"] = {"order": 0}
-                        instruct_dict["write-actions"]["action"].update(action_dict)
-                    elif instruction.type == ofproto.OFPIT_APPLY_ACTIONS:
-                        instruct_dict["apply-actions"] = {}
-                        instruct_dict["apply-actions"]["action"] = {"order": 0}
-                        instruct_dict["apply-actions"]["action"].update(action_dict)
-                    else:
-                        raise Exception("Not implemented yet")
-                    
-
-                    #else:
-                    #    raise Exception("Unknown instruction actions")
-                else:                  
-                    raise Exception("Unknown instruction")
-                instruct_list.append({"instruction": instruct_dict})
+            flow_dict["instructions"] = convert_instructions(msg.instructions)
             
             ###################################################################
             # Matches                                                         #
             ###################################################################
-            match_dict = flow_dict["match"]  = {}
-            logger.debug("decoding matches\n" + str(msg.match))
             if msg.match.__class__ == parser.OFPMatch:
                 for match in msg.match.iteritems():
-                    logger.debug("match\n" + str(match))
-                    if match[0] == "in_port":
-                        match_dict["in-port"] = match[1]
-                    elif match[0] == "vlan_vid":
-                        match_dict["vlan-match"] = {}
-                        if match[1].__class__ == tuple:
-                            id_ = match[1][0] & match[1][1]
-                        else:
-                            id_ = match[1]
-                        match_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
-                        if (id_ & 0xF000 == 0x1000):
-                            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
-                        elif (id_ & 0xF000 == 0x0000):
-                            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
-                        else:
-                            logger.exception("Invalid VLAN Id")
-                    elif match[0] == "eth_dst":
-                        match_dict["ethernet-match"] = {}
-                        match_dict["ethernet-match"]["ethernet-destination"] = {"address": match[1]}
-                    else:
-                        raise Exception("Unknown match field")
-            else:
-                raise Exception("Unknown match")
+                    flow_dict["match"] = convert_match(match)
             json_dict = {"flow": flow_dict}
-            
+
         elif msg.__class__ == parser.OFPGroupMod:
             json_dict = {"group": {}}
             json_dict["group"] = {"group-id": msg.group_id,
@@ -164,7 +184,7 @@ class OpenDaylight:
                     bucket_list = [bucket_dict]
                     for j, bucket_action in enumerate(bucket.actions):
                         logger.debug("bucket action" + str(j) + "\n" + str(bucket_action))
-                        bucket_action_dict = self.convert_action(bucket_action)
+                        bucket_action_dict = convert_action(bucket_action)
                         bucket_action_dict["order"] = j
                        
                         bucket_list.append({"action": bucket_action_dict})
@@ -174,7 +194,7 @@ class OpenDaylight:
         else:
             raise Exception("Unknown msg")
         
-        logger.debug("created json dictionary \n" + str(json_dict))
+        logger.info("created json dictionary \n" + str(json_dict) + "\n")
         
         return json_dict
         

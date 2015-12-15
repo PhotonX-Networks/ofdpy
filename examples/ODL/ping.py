@@ -13,9 +13,19 @@ from ofdpy import usecase
 from ofdpy import topology as topo
 
 # Configure logging levels
-logging.basicConfig(level=logging.DEBUG)
+# We only need to see warnings
+logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
 logging.getLogger("dicttoxml").setLevel(logging.WARN)
+
+# But like some debug information from the messy ofdpy.odlparse
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(message)s')
+ch.setFormatter(formatter)
+logging.getLogger("ofdpy.odlparse").setLevel(logging.DEBUG)
+logging.getLogger("ofdpy.odlparse").propagate = False
+logging.getLogger("ofdpy.odlparse").addHandler(ch)
 
 ofdpa_instance = ofdpa.OFDPA(mode="ODL", controller_ip="127.0.0.1")
 
