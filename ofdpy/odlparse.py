@@ -126,7 +126,32 @@ def convert_instruction(instruction):
     return result
 
 
-class OpenDaylight: 
+def convert_buckets(buckets):
+    logger.debug("decoding buckets\n" + str(buckets) + "\n")
+    buckets_list = []
+    for i, bucket in enumerate(buckets):
+        logger.debug("decoding bucket " + str(i) + "\n" + str(bucket) + "\n")
+        if bucket.__class__ == parser.OFPBucket:
+            # This is a bit hackish as Python doesn't support dicts
+            # with duplicate keys
+            bucket_dict = {"bucket-id": i,
+                           "watch_group": bucket.watch_group,
+                           "watch_port": bucket.watch_port}
+            bucket_list = [bucket_dict]
+            for j, bucket_action in enumerate(bucket.actions):
+
+                bucket_action_dict = convert_action(bucket_action)
+                bucket_action_dict["order"] = j
+                bucket_list.append({"action": bucket_action_dict})
+            logger.debug("decoded bucket\n" + str(bucket_list) + "\n")
+        else:
+            raise Exception("Unknown bucket")
+        buckets_list.append({"bucket": bucket_list})
+        logger.debug("decoded buckets\n" + str(buckets_list) + "\n")
+    return buckets_list
+
+
+class OpenDaylight:
     def __init__(self, ip, node="openflow:55930", port="8181", xml_path=""):
         self.ip = ip
         self.node = node
@@ -138,59 +163,34 @@ class OpenDaylight:
         os.mkdir("./ODL")
         self.msgs = []
 
-
     def convert_msg(self, msg):
         logger.info("received message \n" + str(msg) + "\n")
         if msg.__class__ == parser.OFPFlowMod:
-            flow_dict = {}
-            flow_dict["idle-timeout"] = msg.idle_timeout
-            flow_dict["cookie_mask"] = msg.cookie_mask
-            flow_dict["id"] = self.highest_unused_id
-            self.highest_unused_id += 1
-            flow_dict["priority"] = msg.priority
-            flow_dict["table_id"] = msg.table_id
-            flow_dict["hard-timeout"] = msg.hard_timeout
+            flow_dict = {"idle-timeout":  msg.idle_timeout,
+                         "cookie_mask":   msg.cookie_mask,
+                         "id":            self.highest_unused_id,
+                         "priority":      msg.priority,
+                         "table_id":      msg.table_id,
+                         "hard-timeout":  msg.hard_timeout}
 
-            ###################################################################
-            # Instructions                                                    #
-            ###################################################################
+            self.highest_unused_id += 1
+
             flow_dict["instructions"] = convert_instructions(msg.instructions)
-            
-            ###################################################################
-            # Matches                                                         #
-            ###################################################################
+
             if msg.match.__class__ == parser.OFPMatch:
                 for match in msg.match.iteritems():
                     flow_dict["match"] = convert_match(match)
             json_dict = {"flow": flow_dict}
 
         elif msg.__class__ == parser.OFPGroupMod:
-            json_dict = {"group": {}}
-            json_dict["group"] = {"group-id": msg.group_id,
-                                  "group-type": OpenDaylight.ryu_grouptype_to_ODL(msg.type),
-                                  "buckets": []}
+            group_dict = {"group-id":    msg.group_id,
+                          "group-type":  OpenDaylight.ryu_grouptype_to_ODL(msg.type),
+                          "buckets":     []}
             ###################################################################
             # Buckets                                                         #
             ###################################################################
-            logger.debug("decoding buckets\n" + str(msg.buckets))
-            for i, bucket in enumerate(msg.buckets):
-                logger.debug("bucket " + str(i) + "\n" + str(bucket))
-                if bucket.__class__ == parser.OFPBucket:
-                    # This is a bit hackish as Python doesn't support dicts
-                    # with duplicate keys
-                    bucket_dict = {"bucket-id": i,
-                                   "watch_group": bucket.watch_group,
-                                   "watch_port": bucket.watch_port}
-                    bucket_list = [bucket_dict]
-                    for j, bucket_action in enumerate(bucket.actions):
-                        logger.debug("bucket action" + str(j) + "\n" + str(bucket_action))
-                        bucket_action_dict = convert_action(bucket_action)
-                        bucket_action_dict["order"] = j
-                       
-                        bucket_list.append({"action": bucket_action_dict})
-                else:
-                    raise Exception("Unknown bucket")
-                json_dict["group"]["buckets"].append({"bucket": bucket_list})
+            group_dict["buckets"] = convert_buckets(msg.buckets)
+            json_dict = {"group": group_dict}
         else:
             raise Exception("Unknown msg")
         
