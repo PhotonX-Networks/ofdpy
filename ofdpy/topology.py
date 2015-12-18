@@ -1,10 +1,11 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module contains classes and functions to conveniently define the
 experimenters datacenter setup.
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 
 

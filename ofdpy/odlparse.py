@@ -1,10 +1,11 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module contains classes and functions to convert Ryu messages to ODL XMLs
 and send them to an ODL controller. Currently needs a cleanup.
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 from ryu.ofproto import ofproto_v1_3 as ofproto
 from ryu.ofproto import ofproto_v1_3_parser as parser

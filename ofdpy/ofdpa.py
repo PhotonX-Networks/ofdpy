@@ -1,10 +1,11 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module contains classes and functions to interact with Broadcoms OF-DPA.
 It is based on ofdpa-EA1-2.0.1.0.
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 import logging
 import warnings
