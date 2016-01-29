@@ -96,6 +96,9 @@ class OFDPA():
         if self.mode == "Ryu":
             self.datapath.send_msg(msg)
         elif self.mode == "ODL":
+            msg.xid = 0
+            msg.msg_type = 0
+            msg.version = 0
             self.ODL_instance.msgs.append(msg)
 
 
