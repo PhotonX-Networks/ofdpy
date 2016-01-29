@@ -120,12 +120,12 @@ class VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(VLAN_Flow):
     Untagged packets are dropped if there is no port VLAN assignment rule.
     """
     def __init__(self, ofdpa_instance, IN_PORT, new_VLAN_VID):
-        match = parser.OFPMatch(in_port=IN_PORT, vlan_vid=(0x0000 & 0x0FFF))
+        match = parser.OFPMatch(in_port=IN_PORT,
+                                vlan_vid=(0x0000 & 0x0FFF, 0x1000))
 
         inst = []
 
-        actions = [parser.OFPActionSetField(vlan_vid=(new_VLAN_VID |
-                                                      ofproto.OFPVID_PRESENT))]
+        actions = [parser.OFPActionSetField(vlan_vid=new_VLAN_VID)]
         inst.append(parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
                                                  actions))
         inst.append(parser.OFPInstructionGotoTable(TERMINATION_MAC_FLOW_TABLE))
