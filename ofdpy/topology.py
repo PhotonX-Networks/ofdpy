@@ -91,5 +91,7 @@ def create_spirent_tue_lab():
                         mac=0x001094000000 + i,
                         ip="192.85.1." + str(2+i),
                         connected_to=switch.get_port_by_name("xe" + str(i - 1))))
-    print(nics)
-    nic_1 = NIC(name="spi1")
+    spirent = Client(name="Spirent", nics=nics)
+    for i in range(12,64,2):
+        pass
+    return switch, spirent

@@ -42,11 +42,9 @@ class L2Switch(app_manager.RyuApp):
 
             # Configure topology. In this case, two servers with two NICs each,
             # and one OFDPA switch.
-            topo.create_spirent_tue_lab()
+            switch, spirent = topo.create_spirent_tue_lab()
 
             # And send our use case
-            usecase.ping(self.ofdpa_instance, 10,
-                         (nyx.nics[0].mac,
-                          nyx.nics[0].connected_to.ofdpa_id),
-                         (ananke.nics[0].mac,
-                          ananke.nics[0].connected_to.ofdpa_id))
+            for port in switch.ports:
+                ofdpa.L2_Unfiltered_Interface_Group(self.ofdpa_instance, port.ofdpa_id)
+                ofdpa.VLAN_Allow_All_VLANs_Flow(self.ofdpa_instance, port.ofdpa_id) 
