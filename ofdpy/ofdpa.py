@@ -151,10 +151,10 @@ class VLAN_Allow_All_VLANs_Flow(VLAN_Flow):
     Interface group entry for the port.
     """
     def __init__(self, ofdpa_instance, IN_PORT):
-        match = parser.OFPMatch(in_port=IN_PORT)
+        match = parser.OFPMatch(in_port=IN_PORT, vlan_vid=(0x0000 | 0x1000, 0x1000))
                                 
         inst = []
-        inst.append(parser.OFPInstructionGotoTable(MPLS_TP_MAINTENANCE_POINT_FLOW_TABLE))
+        inst.append(parser.OFPInstructionGotoTable(TERMINATION_MAC_FLOW_TABLE))
 
         mod = parser.OFPFlowMod(datapath=ofdpa_instance.datapath,
                                 table_id=VLAN_FLOW_TABLE,
