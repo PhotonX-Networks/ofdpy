@@ -61,10 +61,10 @@ def _create_fake_datapath():
     s = socket.socket()
 
     app = ryu.base.app_manager.RyuApp()
-    app.name = "ofp_event"
+    app.name = 'ofp_event'
     ryu.base.app_manager.register_app(app)
 
-    datapath = Datapath(s, "1")
+    datapath = Datapath(s, '1')
     datapath.ofproto = ofproto
     datapath.ofproto_parser = parser
     return datapath
@@ -72,30 +72,30 @@ def _create_fake_datapath():
 
 def _remove_fake_datapath():
     app = ryu.base.app_manager.RyuApp()
-    app.name = "ofp_event"
+    app.name = 'ofp_event'
     ryu.base.app_manager.unregister_app(app)
 
 
 class OFDPA():
-    def __init__(self, datapath=None, mode="Ryu", controller_ip="127.0.0.1"):
+    def __init__(self, datapath=None, mode='Ryu', controller_ip='127.0.0.1'):
         self.mode = mode
-        if self.mode == "ODL":
+        if self.mode == 'ODL':
             self.ODL_instance = odlparse.OpenDaylight(controller_ip)
 
         if datapath is None:
-            warnings.warn("No datapath defined, creating fake one")
+            warnings.warn('No datapath defined, creating fake one')
             self.datapath = _create_fake_datapath()
         else:
             self.datapath = datapath
 
         if ((self.datapath.ofproto_parser != parser) |
            (self.datapath.ofproto != ofproto)):
-            raise Exception("OF version incompatible with ofdpa!")
+            raise Exception('OF version incompatible with ofdpa!')
 
     def send(self, msg):
-        if self.mode == "Ryu":
+        if self.mode == 'Ryu':
             self.datapath.send_msg(msg)
-        elif self.mode == "ODL":
+        elif self.mode == 'ODL':
             msg.xid = 0
             msg.msg_type = 0
             msg.version = 0
@@ -141,15 +141,16 @@ class VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(VLAN_Flow):
 
 class VLAN_Allow_All_VLANs_Flow(VLAN_Flow):
     """
-    See table 6 in chapter 3.2.2 VLAN Flow Table.
+    See Table 18 in chapter 4.1.3 VLAN Flow Table.
 
     Wildcard VLAN match for a specific IN_PORT. Essentially turns off VLAN
-    filtering and/or assignment for a physical port. Must be lower priority
-    than any overlapping translation, filtering, MPLS, or VLAN assignment rule.
-    Untagged packets that match this rule will be assigned an illegal VLAN and
-    may be subsequently dropped. Should also define an L2 Unfiltered
-    Interface group entry for the port.
+    filtering and/or assignment for a physical port, but must be programmed
+    with both VLAN_VID and mask equal to OFPVID_PRESENT. Must have
+    lower priority than any overlapping translation, filtering, MPLS, or VLAN
+    assignment rule. A corresponding L2 Unfiltered Interface group entry
+    should also be programmed for the port.
     """
+    __OFDPA_VERSION__ = '2.3.0.0'
     def __init__(self, ofdpa_instance, IN_PORT):
         match = parser.OFPMatch(in_port=IN_PORT, vlan_vid=(0x0000 | 0x1000, 0x1000))
                                 
@@ -189,14 +190,47 @@ class VLAN_VLAN_Filtering_Flow(VLAN_Flow):
         ofdpa_instance.send(mod)
 
 
+class Termination_MAC_IPv4_Multicast_MAC():
+    """
+    See table  63 in chapter 4.1.10 Termination MAC Flow Table.
+
+    Wildcard rule that recognizes all IPv4 multicast MAC addresses
+    specified in RFC 1112 [39]. This must be ETH_DST = 01-00-5e-00-
+    00-00 with mask ff-ff-ff-80-00-00. There can only be one flow entry
+    of this type. Must have a Goto-Table instruction specifying the
+    Multicast Routing Flow Table.
+    """
+    __OFDPA_VERSION__ = '2.3.0.0'
+    def __init__(self, ofdpa_instance, IN_PORT=None, VLAN_VID=None, copy_controller=False):
+        match = parser.OFPMatch(eth_dst=(0x01005E000000, 0xffffff800000), eth_type=0x0800)
+        match_dict = {'eth_dst':(0x01005E000000, 0xffffff800000), 'eth_type':0x0800}
+        if IN_PORT:
+            raise Exception('Currently not supported')    
+            match_dict['in_phy_port'] = IN_PORT
+        if VLAN_VID:
+            match_dict['vlan_vid'] = VLAN_VID
+        match = parser.OFPMatch(**match_dict)
+
+        print(match)
+        inst = []
+        if copy_controller:
+            action_1 = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
+            inst_1 = parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                                  action_1)
+            inst.append(inst_1)
+
+        inst.append(parser.OFPInstructionGotoTable(MULTICAST_ROUTING_FLOW_TABLE))
+
+        # Installing flows to Bridge table..
+        mod = parser.OFPFlowMod(datapath=ofdpa_instance.datapath,
+                                table_id=TERMINATION_MAC_FLOW_TABLE,
+                                match=match, instructions=inst)
+
+        ofdpa_instance.send(mod)
+
 class Bridging_Flow(object):
     def __init__(self, ofdpa_instance, group, inst, match,
                  copy_controller=False):
-        self.group = group
-        self.inst = inst
-        self.match = match
-        self.copy_controller = copy_controller
-
         if copy_controller:
             action_1 = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
             inst_1 = parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
@@ -207,14 +241,12 @@ class Bridging_Flow(object):
         inst_2 = parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS,
                                               action_2)
         inst.append(inst_2)
-
         inst.append(parser.OFPInstructionGotoTable(POLICY_ACL_FLOW_TABLE))
 
         # Installing flows to Bridge table..
         mod = parser.OFPFlowMod(datapath=ofdpa_instance.datapath,
                                 table_id=BRIDGING_FLOW_TABLE,
                                 match=match, instructions=inst)
-
         ofdpa_instance.send(mod)
 
 
@@ -231,7 +263,7 @@ class Bridging_DLF_VLAN_Bridging_Flow(Bridging_Flow):
     def __init__(self, ofdpa_instance, VLAN_VID, group,
                  copy_controller=False):
         if group.__class__ != L2_Flood_Group:
-            raise Exception("Must be L2_Flood_Group")
+            raise Exception('Must be L2_Flood_Group')
         inst = []
         match = parser.OFPMatch(vlan_vid=ofproto.OFPVID_PRESENT | VLAN_VID)
 
@@ -252,7 +284,7 @@ class Bridging_Unicast_VLAN_Bridging_Flow(Bridging_Flow):
     def __init__(self, ofdpa_instance, VLAN_VID, MAC_DST, group,
                  copy_controller=False):
         if group.__class__ != L2_Interface_Group:
-            raise Exception("Must be L2_Interface_Group")
+            raise Exception('Must be L2_Interface_Group')
         inst = []
         match = []
         match = parser.OFPMatch(vlan_vid=ofproto.OFPVID_PRESENT | VLAN_VID,
@@ -263,6 +295,28 @@ class Bridging_Unicast_VLAN_Bridging_Flow(Bridging_Flow):
             copy_controller=copy_controller)
 
 
+class Bridging_Multicast_VLAN_Bridging_Flow(Bridging_Flow):
+    """
+    See table 93 in chapter 4.1.16 Bridging Flow Table
+
+    Matches switched multicast Ethernet frames by VLAN Id and
+    MAC_DST. MAC_DST must be multicast and cannot be masked.
+    VLAN Id must be present and non-zero. Tunnel Id must be
+    masked or omitted.
+    """
+    __OFDPA_VERSION__ = "2.3.0.0"
+    def __init__(self, ofdpa_instance, VLAN_VID, group,
+                 copy_controller=False):
+        if group.__class__ != L2_Multicast_Group:
+            raise Exception('Must be L2_Multicast_Group')
+        inst = []
+        match = []
+        match = parser.OFPMatch(vlan_vid=ofproto.OFPVID_PRESENT | VLAN_VID,
+                                eth_dst=0xffffffffffff)
+
+        super(Bridging_Multicast_VLAN_Bridging_Flow, self).__init__(
+            ofdpa_instance, group, inst, match,
+            copy_controller=copy_controller)
 # Untested
 class Policy_ACL_Flow:
     def __init__(self):
@@ -270,14 +324,18 @@ class Policy_ACL_Flow:
 
 
 # Untested
-class Policy_ACL_VLAN_Flow(Policy_ACL_Flow):
-    def __init__(self, ofdpa_instance, group, IP_DSCP=None, ETH_TYPE=0x0800):
-        match = []
+class Policy_ACL_IPv4_VLAN_Flow(Policy_ACL_Flow):
+    def __init__(self, ofdpa_instance, group, IN_PORT=None, ETH_DST=None, VLAN_VID=None, IP_DSCP=None):
+        match_dict = {'eth_type': 0x0800}
+        if IN_PORT:
+            match_dict['in_port'] = IN_PORT
+        if ETH_DST: 
+            match_dict['eth_dst'] = ETH_DST
+        if VLAN_VID:
+            match_dict['vlan_vid'] = VLAN_VID
         if IP_DSCP:
-            if ((group.__class__ == L3_Multicast_Group) |
-               (group.__class__ == L3_Multicast_Group) |
-               (group.__class__ == L3_Multicast_Group)):
-                match = parser.OFPMatch(eth_type=ETH_TYPE, ip_dscp=IP_DSCP)
+            match_dict['ip_dscp'] = IP_DSCP
+        match = parser.OFPMatch(**match_dict)
 
         actions = [parser.OFPActionGroup(group.encode_id())]
         inst = [parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS,
@@ -304,9 +362,9 @@ class L2_Interface_Group():
 
     def __init__(self, ofdpa_instance, out_port, vlan, pop_vlan=False):
         if out_port > 0xFFFF:
-            raise Exception("Port can't be bigger than 0xFFFF")
+            raise Exception('Port can not be bigger than 0xFFFF')
         if vlan > 0xFFFF:
-            raise Exception("Vlan can't be bigger than 0xFFF")
+            raise Exception('Vlan can not be bigger than 0xFFF')
 
         self.out_port = out_port
         self.vlan = vlan
@@ -331,9 +389,9 @@ class L2_Interface_Group():
 
     def encode_id(self):
         if self.out_port > 0xFFFF:
-            raise Exception("Port can't be bigger than 0xFFFF")
+            raise Exception('Port can not be bigger than 0xFFFF')
         if self.vlan > 0xFFF:
-            raise Exception("Vlan can't be bigger than 0xFFF")
+            raise Exception('Vlan can not be bigger than 0xFFF')
         type_byte = L2_INTERFACE_GROUP << 28
         vlan_byte = self.vlan << 16
         port_byte = self.out_port
@@ -350,15 +408,16 @@ class L2_Unfiltered_Interface_Group():
     """
     See chapter 4.3.2 OF-DPA L2 Unfiltered Interface Group Entries.
 
-    L2 Unfiltered Interface Group entries are of OpenFlow indirect type,
-    with a single action bucket. OF-DPA L2 Unfiltered Interface group entries
-    are similar to L2 Interface group entries, but are used for forwarding
-    to ports where egress VLAN filtering and tagging is not desired.
-    As with L2 Interface group entries, OF-DPA uses the
-    L2 Unfiltered Interface group declaration to configure the port to not do
-    VLAN filtering. Thus, a port cannot have both L2 Interface and
-    L2 Unfiltered Interface groups defined for it.
+    L2 Unfiltered Interface Group entries are of OpenFlow indirect type, with a
+    single action bucket. OF-DPA L2 Unfiltered Interface group entries are
+    similar to L2 Interface group entries except that they are used for
+    forwarding to ports where VLAN filtering and tagging is not required on the
+    egress port.  As with L2 Interface group entries, OF-DPA uses the L2
+    Unfiltered Interface groups to configure the port to not do VLAN filtering.
+    Thus an output port cannot have both L2 Interface and L2 Unfiltered
+    Interface groups defined for it.
     """
+    __OFDPA_VERSION__ = '2.3.0.0'
 
     def __init__(self, ofdpa_instance, out_port):
         self.out_port = out_port
@@ -378,7 +437,7 @@ class L2_Unfiltered_Interface_Group():
 
     def encode_id(self):
         if self.out_port > 0xFFFF:
-            raise Exception("Port can't be bigger than 0xFFFF")
+            raise Exception('Port can not be bigger than 0xFFFF')
         type_byte = L2_UNFILTERED_INTERFACE_GROUP << 28
         port_byte = self.out_port
         return type_byte | port_byte
@@ -393,9 +452,9 @@ class L2_Unfiltered_Interface_Group():
 class L2_Multicast_Group:
     def __init__(self, ofdpa_instance, index, groups):
         if ((groups[0].__class__ != L2_Interface_Group) &
-           (groups[0].__class__ != L2_Interface_Group) &
+           (groups[0].__class__ != L2_Unfiltered_Interface_Group) &
            (groups[0].__class__ != L2_Interface_Group)):
-            raise Exception("Wrong group type")
+            raise Exception('Wrong group type')
 
         self.index = index
         self.vlan = groups[0].vlan
@@ -403,7 +462,7 @@ class L2_Multicast_Group:
         buckets = []
         for group in groups:
             if group.vlan != self.vlan:
-                raise Exception("All vlan_ids in all groups should match")
+                raise Exception('All vlan_ids in all groups should match')
             group_id = group.encode_id()
             actions = [parser.OFPActionGroup(group_id)]
 
@@ -422,9 +481,9 @@ class L2_Multicast_Group:
 
     def encode_id(self):
         if self.index > 0xFFFF:
-            raise Exception("Id can't be bigger than 0xFFFF")
+            raise Exception('Id can not be bigger than 0xFFFF')
         if self.vlan > 0xFFF:
-            raise Exception("Vlan can't be bigger than 0xFFF")
+            raise Exception('Vlan can not be bigger than 0xFFF')
         type_byte = L2_MULTICAST_GROUP << 28
         vlan_byte = self.vlan << 16
         index_byte = self.index
@@ -450,13 +509,13 @@ class L2_Flood_Group:
 
     def __init__(self, ofdpa_instance, index, groups):
         if (groups[0].__class__ != L2_Interface_Group):
-            raise Exception("Wrong group type")
+            raise Exception('Wrong group type')
         self.index = index
         self.vlan = groups[0].vlan
         buckets = []
         for group in groups:
             if group.vlan != self.vlan:
-                raise Exception("All vlan_ids in all groups should match")
+                raise Exception('All vlan_ids in all groups should match')
             group_id = group.encode_id()
             actions = [parser.OFPActionGroup(group_id)]
 
@@ -475,9 +534,9 @@ class L2_Flood_Group:
 
     def encode_id(self):
         if self.index > 0xFFFF:
-            raise Exception("Id can't be bigger than 0xFFFF")
+            raise Exception('Id can not be bigger than 0xFFFF')
         if self.vlan > 0xFFF:
-            raise Exception("Vlan can't be bigger than 0xFFF")
+            raise Exception('Vlan can not be bigger than 0xFFF')
         type_byte = L2_FLOOD_GROUP << 28
         vlan_byte = self.vlan << 16
         index_byte = self.index
@@ -510,7 +569,7 @@ class L3_Multicast_Group:
         if ((group.__class__ != L2_Interface_Group) &
            (group.__class__ != L2_Interface_Group) &
            (group.__class__ != L2_Interface_Group)):
-            raise Exception("Wrong group type")
+            raise Exception('Wrong group type')
 
         self.index = index
         group_id = group.encode_id()
@@ -532,9 +591,9 @@ class L3_Multicast_Group:
 
     def encode_id(self):
         if self.index > 0xFFFF:
-            raise Exception("Id can't be bigger than 0xFFFF")
+            raise Exception('Id can not be bigger than 0xFFFF')
         if self.vlan > 0xFFF:
-            raise Exception("Vlan can't be bigger than 0xFFF")
+            raise Exception('Vlan can not be bigger than 0xFFF')
         type_byte = L3_MULTICAST_GROUP << 28
         vlan_byte = self.vlan << 16
         index_byte = self.index
