@@ -1,10 +1,11 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module contains an example how to use the ofdpy use cases in combination
 with an ODL controller.
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 import logging
 

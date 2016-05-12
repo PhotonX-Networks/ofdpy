@@ -1,9 +1,10 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module is used to test all ofdpy.ofdpa functions and classes.
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 import pytest
 

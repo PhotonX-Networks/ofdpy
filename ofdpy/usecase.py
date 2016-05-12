@@ -1,10 +1,11 @@
-#! /usr/bin/env
+#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 """
 This module contains tested use cases of the PhotonX/TUe ToR high radix
 packet switch
 
 @author: Karel van de Plassche
+@licence: GPLv3
 """
 import ofdpa
 
