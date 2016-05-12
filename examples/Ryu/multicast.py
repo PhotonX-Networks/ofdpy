@@ -40,14 +40,6 @@ class L2Switch(app_manager.RyuApp):
                 port_ids.append(p.port_no)
             self.logger.debug('OFPPortDescStatsReply received: %s', port_ids)
 
-            # Configure topology. In this case, two servers with two NICs each,
-            # and one OFDPA switch.
-            switch, spirent = topo.create_spirent_tue_lab()
-
-            # And send our use case
-            #for port in switch.ports:
-            #     ofdpa.L2_Unfiltered_Interface_Group(self.ofdpa_instance, port.ofdpa_id)
-            #     ofdpa.VLAN_Allow_All_VLANs_Flow(self.ofdpa_instance, port.ofdpa_id) 
             ## Create Multicast groups to duplicate traffic
             L2_groups = []
             vlan = 10
@@ -59,6 +51,3 @@ class L2Switch(app_manager.RyuApp):
             for i in range(4):
                 multicast_group = ofdpa.L2_Multicast_Group(self.ofdpa_instance, i, L2_groups[12 + i::4] + [L2_groups[4 + i]])
                 ofdpa.Policy_ACL_IPv4_VLAN_Flow(self.ofdpa_instance, multicast_group, IN_PORT=1 + i)
-               # ofdpa.Policy_ACL_IPv4_VLAN_Flow(self.ofdpa_instance, multicast_group, ETH_DST=spirent.nics[0])
-               
-
