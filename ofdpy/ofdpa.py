@@ -122,6 +122,7 @@ class VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(VLAN_Flow):
     Goto-Table instruction specifyies the Termination MAC Flow Table.
     Untagged packets are dropped if there is no port VLAN assignment rule.
     """
+    __OFDPA_VERSION__ = '2.3.0.0'
     def __init__(self, ofdpa_instance, IN_PORT, new_VLAN_VID):
         match = parser.OFPMatch(in_port=IN_PORT,
                                 vlan_vid=(0x0000 & 0x0FFF, 0x1000))
@@ -176,6 +177,7 @@ class VLAN_VLAN_Filtering_Flow(VLAN_Flow):
     Tagged packets that miss are considered VLAN_VIDs that are not allowed
     on the port and are dropped.
     """
+    __OFDPA_VERSION__ = '2.3.0.0'
     def __init__(self, ofdpa_instance, IN_PORT, VLAN_VID):
         match = parser.OFPMatch(in_port=IN_PORT,
                                 vlan_vid=(ofproto.OFPVID_PRESENT |
@@ -323,9 +325,9 @@ class Policy_ACL_Flow:
         pass
 
 
-# Untested
 class Policy_ACL_IPv4_VLAN_Flow(Policy_ACL_Flow):
     def __init__(self, ofdpa_instance, group, IN_PORT=None, ETH_DST=None, VLAN_VID=None, IP_DSCP=None):
+        __OFDPA_VERSION__ = '2.3.0.0'
         match_dict = {'eth_type': 0x0800}
         if IN_PORT:
             match_dict['in_port'] = IN_PORT
@@ -359,7 +361,7 @@ class L2_Interface_Group():
     VLAN filtering behavior. This approach was taken since OpenFlow does not
     support configuring VLANs on physical ports.
     """
-
+    __OFDPA_VERSION__ = '2.3.0.0'
     def __init__(self, ofdpa_instance, out_port, vlan, pop_vlan=False):
         if out_port > 0xFFFF:
             raise Exception('Port can not be bigger than 0xFFFF')
@@ -448,8 +450,8 @@ class L2_Unfiltered_Interface_Group():
         return out_port
 
 
-# Untested
 class L2_Multicast_Group:
+    __OFDPA_VERSION__ = '2.3.0.0'
     def __init__(self, ofdpa_instance, index, groups):
         if ((groups[0].__class__ != L2_Interface_Group) &
            (groups[0].__class__ != L2_Unfiltered_Interface_Group) &
