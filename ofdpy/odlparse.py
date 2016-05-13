@@ -17,6 +17,7 @@ import dicttoxml
 import shutil
 import os
 import logging
+import copy
 
 logger = logging.getLogger(__name__)
 
@@ -89,9 +90,8 @@ def convert_instructions(instructions):
     instruction_list = []
     logger.debug("decoding instructions\n" + str(instructions) + "\n")
     for i, instruction in enumerate(instructions):
-        temp_ = {"order": i}
-        instruction_dict = temp_.copy()
-        instruction_dict.update(convert_instruction(instruction))
+        instruction_dict = convert_instruction(instruction)
+        instruction_dict["instruction"]["order"] = i
         instruction_list.append(instruction_dict)
     logger.debug("decoded instructions\n" + str(instruction_dict) + "\n")
     return instruction_list
