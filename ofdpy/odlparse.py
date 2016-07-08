@@ -219,18 +219,19 @@ class OpenDaylight:
         return {"OXMTlv": {"field": k, "value": value, "mask": mask}}
         
     def write_to_file(self):
-        with open("./ODL/send.py", 'w') as script:
-            script.write("#!/usr/bin/env python\n")
-            script.write("import requests\n")
-            script.write("import json\n\n")
+        lines = [
+            "#!/usr/bin/env python\n",
+            "import requests\n",
+            "import json\n\n",
 
-            script.write("controller_ip = \"" + self.ip + "\"\n")
-            script.write("controller_port = \"" + self.port + "\"\n")
-            script.write("node = \"" + self.node + "\"\n")
-            script.write("restconf_url = \"http://\" + controller_ip + \":\" + controller_port + \"/restconf\"\n")
-            script.write("node_url = restconf_url + \"/config/opendaylight-inventory:nodes/node/\" + node\n")
+            "controller_ip = \"" + self.ip + "\"\n",
+            "controller_port = \"" + self.port + "\"\n",
+            "node = \"" + self.node + "\"\n",
+            "restconf_url = \"http://\" + controller_ip + \":\" + controller_port + \"/restconf\"\n",
+            "node_url = restconf_url + \"/config/opendaylight-inventory:nodes/node/\" + node\n",
 
-            script.write("urls = [\n")   
+            "urls = [\n"]
+
         for i, msg in enumerate(self.msgs):
             with open("./ODL/" + str(i) + ".xml", 'w') as outfile:
                 #json.dump(entry , outfile, indent=4)
@@ -242,31 +243,33 @@ class OpenDaylight:
                 elif  xml.startswith("<group>"):
                     _, xml = xml.split("<group>",1)
                     xml = "<group xmlns=\"urn:opendaylight:flow:inventory\">" + xml
-                xml = xml.replace("<item>","")
-                xml = xml.replace("</item>","")
-                dom = parseString(xml)
-                outfile.write(dom.toprettyxml())
-            with open("./ODL/send.py", 'a') as script:
-                if "flow" in entry:
-                    script.write("        node_url + \"/table/" + 
-                                 str(entry["flow"]["table_id"]) + 
-                                 "/flow/" +
-                                 str(entry["flow"]["id"]) +
-                                 "\",\n")
-                elif "group" in entry:
-                    script.write("        node_url + \"/group/" +
-                                 str(entry["group"]["group-id"]) +
-                                 "\",\n")
-                
+                    xml = xml.replace("<item>","")
+                    xml = xml.replace("</item>","")
+                    dom = parseString(xml)
+                    outfile.write(dom.toprettyxml())
+
+            if "flow" in entry:
+                lines.append("        node_url + \"/table/" + 
+                             str(entry["flow"]["table_id"]) + 
+                             "/flow/" +
+                             str(entry["flow"]["id"]) +
+                             "\",\n")
+            elif "group" in entry:
+                lines.append("        node_url + \"/group/" +
+                             str(entry["group"]["group-id"]) +
+                             "\",\n")
+
         with open("./ODL/send.py", 'a') as script:
-            script.write("        ]\n")
-            script.write("for i,url in enumerate(urls):\n")
-            script.write("    data=open(str(i) + \".xml\").read()\n")
-            script.write("    r = requests.put(url, data,\n")
-            script.write("                     auth=('admin', 'admin'),\n")
-            script.write("                     headers={'Accept':'application/xml',\n")
-            script.write("                     'Content-Type':'application/xml'})\n")
-            script.write("    if r.status_code != 200:\n")
-            script.write("        print 'SENDING FAILED'\n")
-            script.write("        print r.url\n")
-            script.write("        print r.text\n")
+            lines.extend(["        ]\n",
+                          "for i,url in enumerate(urls):\n",
+                          "    data=open(str(i) + \".xml\").read()\n",
+                          "    r = requests.put(url, data,\n",
+                          "                     auth=('admin', 'admin'),\n",
+                          "                     headers={'Accept':'application/xml',\n",
+                          "                     'Content-Type':'application/xml'})\n",
+                          "    if r.status_code != 200:\n",
+                          "        print 'SENDING FAILED'\n",
+                          "        print r.url\n",
+                          "        print r.text\n"])
+            for line in lines:
+                script.write(line)
