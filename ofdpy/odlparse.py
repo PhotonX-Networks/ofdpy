@@ -56,6 +56,17 @@ def convert_action(action):
     return action_dict
 
 
+def convert_matchs(matchs):
+    matchs_list = []
+    logger.debug("decoding matchs\n" + str(matchs.__dict__) + "\n")
+    print 'matchs'
+    print matchs
+    for i, match in enumerate(matchs.iteritems()):
+        match_dict = convert_match(match)
+        matchs_list.append(match_dict)
+    logger.debug("decoded matchs\n" + str(match_dict) + "\n")
+    return matchs_list
+
 def convert_match(match):
     logger.debug("decoding match\n" + str(match))
     match_dict = {}
@@ -178,9 +189,7 @@ class OpenDaylight:
 
             flow_dict["instructions"] = convert_instructions(msg.instructions)
 
-            if msg.match.__class__ == parser.OFPMatch:
-                for match in msg.match.iteritems():
-                    flow_dict["match"] = convert_match(match)
+            flow_dict["match"] = convert_matchs(msg.match)
             json_dict = {"flow": flow_dict}
 
         elif msg.__class__ == parser.OFPGroupMod:

@@ -20,15 +20,15 @@ logger = logging.getLogger(__name__)
 logging.getLogger("dicttoxml").setLevel(logging.WARN)
 
 # But like some debug information from the messy ofdpy.odlparse
-#ch = logging.StreamHandler()
-#ch.setLevel(logging.DEBUG)
-#formatter = logging.Formatter('%(message)s')
-#ch.setFormatter(formatter)
-#logging.getLogger("ofdpy.odlparse").setLevel(logging.DEBUG)
-#logging.getLogger("ofdpy.odlparse").propagate = False
-#logging.getLogger("ofdpy.odlparse").addHandler(ch)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(message)s')
+ch.setFormatter(formatter)
+logging.getLogger("ofdpy.odlparse").setLevel(logging.DEBUG)
+logging.getLogger("ofdpy.odlparse").propagate = False
+logging.getLogger("ofdpy.odlparse").addHandler(ch)
 
-ofdpa_instance = ofdpa.OFDPA(mode="ODL", controller_ip="127.0.0.1")
+ofdpa_instance = ofdpa.OFDPA(mode="ODL", controller_ip="131.155.34.9")
 
 # Configure topology. In this case, two servers with two NICs each, and one
 # OFDPA switch
