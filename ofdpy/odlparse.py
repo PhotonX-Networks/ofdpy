@@ -233,6 +233,7 @@ class OpenDaylight:
             "urls = [\n"]
 
         for i, msg in enumerate(self.msgs):
+            print i
             with open("./ODL/" + str(i) + ".xml", 'w') as outfile:
                 #json.dump(entry , outfile, indent=4)
                 entry = self.convert_msg(msg)
@@ -240,13 +241,14 @@ class OpenDaylight:
                 if xml.startswith("<flow>"):
                     _, xml = xml.split("<flow>",1)
                     xml = "<flow xmlns=\"urn:opendaylight:flow:inventory\">" + xml
+                    print xml
                 elif  xml.startswith("<group>"):
                     _, xml = xml.split("<group>",1)
                     xml = "<group xmlns=\"urn:opendaylight:flow:inventory\">" + xml
-                    xml = xml.replace("<item>","")
-                    xml = xml.replace("</item>","")
-                    dom = parseString(xml)
-                    outfile.write(dom.toprettyxml())
+                xml = xml.replace("<item>","")
+                xml = xml.replace("</item>","")
+                dom = parseString(xml)
+                outfile.write(dom.toprettyxml())
 
             if "flow" in entry:
                 lines.append("        node_url + \"/table/" + 
