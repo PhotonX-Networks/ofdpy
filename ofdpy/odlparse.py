@@ -22,6 +22,16 @@ import copy
 logger = logging.getLogger(__name__)
 
 
+def convert_vlan(id_):
+    vlan_dict = {"vlan-id": 0x0FFF & id_}
+    if (id_ & 0x0FFF != 0x0000):
+        vlan_dict["vlan-id-present"] = True
+    elif (id_ & 0x0FFF == 0x0000):
+        vlan_dict["vlan-id-present"] = False
+    else:
+        logger.exception("Invalid VLAN Id")
+    return vlan_dict
+
 def convert_action(action):
     logger.debug("decoding action\n" + str(action))
     action_dict = {}
@@ -38,13 +48,8 @@ def convert_action(action):
                 id_ = action.value[0] & action.value[1]
             else:
                 id_ = action.value
-            setfield_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
-            if (id_ & 0xF000 == 0x1000):
-                setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
-            elif (id_ & 0xF000 == 0x0000):
-                setfield_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
-            else:
-                logger.exception("Invalid VLAN Id")
+            vlan_dict = convert_vlan(id_)
+            setfield_dict["vlan-match"]["vlan-id"] = vlan_dict
         else:
             raise Exception("Unknown field")
     elif action.__class__ == parser.OFPActionPopVlan:
@@ -79,13 +84,8 @@ def convert_match(match):
             id_ = match[1][0] & match[1][1]
         else:
             id_ = match[1]
-        match_dict["vlan-match"]["vlan-id"] = {"vlan-id": 0x0FFF & id_}
-        if (id_ & 0xF000 == 0x1000):
-            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = True
-        elif (id_ & 0xF000 == 0x0000):
-            match_dict["vlan-match"]["vlan-id"]["vlan-id-present"] = False
-        else:
-            logger.exception("Invalid VLAN Id")
+        vlan_dict = convert_vlan(id_)
+        match_dict["vlan-match"]["vlan-id"] = vlan_dict
 
     elif match[0] == "eth_dst":
         match_dict["ethernet-match"] = {}
@@ -230,6 +230,7 @@ class OpenDaylight:
     def write_to_file(self):
         lines = [
             "#!/usr/bin/env python\n",
+            "import sys\n",
             "import requests\n",
             "import json\n\n",
 
@@ -241,8 +242,8 @@ class OpenDaylight:
 
             "urls = [\n"]
 
+        urlstr = []
         for i, msg in enumerate(self.msgs):
-            print i
             with open("./ODL/" + str(i) + ".xml", 'w') as outfile:
                 #json.dump(entry , outfile, indent=4)
                 entry = self.convert_msg(msg)
@@ -260,27 +261,52 @@ class OpenDaylight:
                 outfile.write(dom.toprettyxml())
 
             if "flow" in entry:
-                lines.append("        node_url + \"/table/" + 
-                             str(entry["flow"]["table_id"]) + 
+                urlstr.append("node_url + \"/table/" + 
+                             str(entry["flow"]["table_id"]) +
                              "/flow/" +
                              str(entry["flow"]["id"]) +
-                             "\",\n")
+                             "\"")
             elif "group" in entry:
-                lines.append("        node_url + \"/group/" +
+                urlstr.append("node_url + \"/group/" +
                              str(entry["group"]["group-id"]) +
-                             "\",\n")
+                             "\"")
+
+        for url in urlstr:
+            print url
+            lines.extend("        " + url + ",\n")
+
+        lines.extend(["        ]\n",
+                      "if len(sys.argv) > 1:\n",
+                      "    dolist = [int(x) for x in sys.argv[1].split(',')]\n",
+                      "else:\n",
+                      "    dolist = [i for i, __ in enumerate(urls)]\n\n",
+                      "for i,url in enumerate(urls):\n",
+                      "    if i in dolist:\n"])
 
         with open("./ODL/send.py", 'a') as script:
-            lines.extend(["        ]\n",
-                          "for i,url in enumerate(urls):\n",
-                          "    data=open(str(i) + \".xml\").read()\n",
-                          "    r = requests.put(url, data,\n",
-                          "                     auth=('admin', 'admin'),\n",
-                          "                     headers={'Accept':'application/xml',\n",
-                          "                     'Content-Type':'application/xml'})\n",
-                          "    if r.status_code != 200:\n",
-                          "        print 'SENDING FAILED'\n",
-                          "        print r.url\n",
-                          "        print r.text\n"])
-            for line in lines:
+            bottom = [    "        data=open(str(i) + \".xml\").read()\n",
+                          "        r = requests.put(url, data,\n",
+                          "                         auth=('admin', 'admin'),\n",
+                          "                         headers={'Accept':'application/xml',\n",
+                          "                         'Content-Type':'application/xml'})\n",
+                          "        if r.status_code != 200:\n",
+                          "            print 'SENDING FAILED'\n",
+                          "            print r.url\n",
+                          "            print r.text\n"]
+            for line in (lines + bottom):
+                script.write(line)
+
+
+        with open("./ODL/remove.py", 'w') as script:
+            bottom = ["for i,url in enumerate(urls):\n",
+                      "    if i in dolist:\n",
+                      "        r = requests.delete(url,\n",
+                      "                            auth=('admin', 'admin'),\n",
+                      "                            headers={'Accept':'application/xml',\n",
+                      "                            'Content-Type':'application/xml'})\n",
+                      "        if r.status_code != 200:\n",
+                      "            print 'SENDING FAILED'\n",
+                      "            print r.url\n",
+                      "            print r.text\n"]
+            for line in (lines + bottom):
                 script.write(line)
