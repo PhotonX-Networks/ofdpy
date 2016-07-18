@@ -89,6 +89,14 @@ def convert_match(match):
         match_dict["ethernet-match"] = {}
         match_dict["ethernet-match"]["ethernet-destination"] = {"address":
                                                                 match[1]}
+    elif match[0] == "eth_type":
+        match_dict["ethernet-match"] = {}
+        match_dict["ethernet-match"]["ethernet-type"] = {"type":
+                                                         match[1]}
+    elif match[0] == "ip_dscp":
+        match_dict["ip-match"] = {}
+        match_dict["ip-match"] = {"ip-dscp":
+                                                         match[1]}
     else:
         raise Exception("Unknown match field")
     logger.debug("decoded match\n" + str(match_dict) + "\n")

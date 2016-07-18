@@ -68,15 +68,19 @@ def ping(ofdpa_instance, dummy_vlan,
                                           copy_controller=False)
 
 
-def dscp(ofdpa_instance, vlan, ofdpa_id, dscp):
+def dscp_vlan(ofdpa_instance, dummy_vlan, dscp, ofdpa_id_in, ofdpa_id_out):
     """
     One way filtering/forwarding on DSCP tag
     """
+    ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, ofdpa_id_in, dummy_vlan)
+    ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
+                                                         ofdpa_id_in,
+                                                         dummy_vlan)
     l2_Interface_group = ofdpa.L2_Interface_Group(ofdpa_instance,
-                                                  ofdpa_id,
-                                                  vlan)
-    l3_Interface_group = ofdpa.L3_Multicast_Group(ofdpa_instance, 0,
-                                                  l2_Interface_group)
-    ofdpa.Policy_ACL_VLAN_Flow(ofdpa_instance,
-                               l3_Interface_group,
+                                                  ofdpa_id_out,
+                                                  dummy_vlan)
+    #l3_Interface_group = ofdpa.L3_Multicast_Group(ofdpa_instance, 0,
+    #                                              l2_Interface_group)
+    ofdpa.Policy_ACL_IPv4_VLAN_Flow(ofdpa_instance,
+                               l2_Interface_group,
                                IP_DSCP=dscp)
