@@ -64,8 +64,6 @@ def convert_action(action):
 def convert_matchs(matchs):
     matchs_list = []
     logger.debug("decoding matchs\n" + str(matchs.__dict__) + "\n")
-    print 'matchs'
-    print matchs
     for i, match in enumerate(matchs.iteritems()):
         match_dict = convert_match(match)
         matchs_list.append(match_dict)
@@ -251,7 +249,6 @@ class OpenDaylight:
                 if xml.startswith("<flow>"):
                     _, xml = xml.split("<flow>",1)
                     xml = "<flow xmlns=\"urn:opendaylight:flow:inventory\">" + xml
-                    print xml
                 elif  xml.startswith("<group>"):
                     _, xml = xml.split("<group>",1)
                     xml = "<group xmlns=\"urn:opendaylight:flow:inventory\">" + xml
@@ -272,7 +269,6 @@ class OpenDaylight:
                              "\"")
 
         for url in urlstr:
-            print url
             lines.extend("        " + url + ",\n")
 
         lines.extend(["        ]\n",

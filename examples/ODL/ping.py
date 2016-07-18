@@ -21,10 +21,10 @@ logging.getLogger("dicttoxml").setLevel(logging.WARN)
 
 # But like some debug information from the messy ofdpy.odlparse
 ch = logging.StreamHandler()
-ch.setLevel(logging.DEBUG)
+ch.setLevel(logging.WARN)
 formatter = logging.Formatter('%(message)s')
 ch.setFormatter(formatter)
-logging.getLogger("ofdpy.odlparse").setLevel(logging.DEBUG)
+logging.getLogger("ofdpy.odlparse").setLevel(logging.WARN)
 logging.getLogger("ofdpy.odlparse").propagate = False
 logging.getLogger("ofdpy.odlparse").addHandler(ch)
 
