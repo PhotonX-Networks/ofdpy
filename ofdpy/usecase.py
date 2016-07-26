@@ -78,9 +78,8 @@ def dscp_vlan(ofdpa_instance, dummy_vlan, dscp, ofdpa_id_in, ofdpa_id_out):
                                                          dummy_vlan)
     l2_Interface_group = ofdpa.L2_Interface_Group(ofdpa_instance,
                                                   ofdpa_id_out,
-                                                  dummy_vlan)
-    #l3_Interface_group = ofdpa.L3_Multicast_Group(ofdpa_instance, 0,
-    #                                              l2_Interface_group)
+                                                  dummy_vlan,
+                                                  pop_vlan=True)
     ofdpa.Policy_ACL_IPv4_VLAN_Flow(ofdpa_instance,
                                l2_Interface_group,
                                IP_DSCP=dscp)
