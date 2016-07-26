@@ -66,8 +66,15 @@ def convert_matchs(matchs):
     logger.debug("decoding matchs\n" + str(matchs.__dict__) + "\n")
     for i, match in enumerate(matchs.iteritems()):
         match_dict = convert_match(match)
-        matchs_list.append(match_dict)
-    logger.debug("decoded matchs\n" + str(match_dict) + "\n")
+        matchs_keys = [match.keys() for match in matchs_list]
+        try:
+            index = matchs_keys.index(match_dict.keys())
+        except ValueError:
+            matchs_list.append(match_dict)
+        else:
+            print(matchs_list[index][match_dict.keys()[0]])
+            matchs_list[index][match_dict.keys()[0]][match_dict[match_dict.keys()[0]].keys()[0]] = match_dict[match_dict.keys()[0]][match_dict[match_dict.keys(    )[0]].keys()[0]]
+    logger.debug("decoded matchs\n" + str(matchs_list) + "\n")
     return matchs_list
 
 def convert_match(match):
@@ -86,9 +93,19 @@ def convert_match(match):
         match_dict["vlan-match"]["vlan-id"] = vlan_dict
 
     elif match[0] == "eth_dst":
+        if len(match[1]) == 1:
+            eth_dst = match[1]
+            eth_dst_mask = 'ff:ff:ff:ff:ff:ff'
+        else:
+            eth_dst =  match[1][0]
+            eth_dst_mask =  match[1][1]
+
         match_dict["ethernet-match"] = {}
         match_dict["ethernet-match"]["ethernet-destination"] = {"address":
-                                                                match[1]}
+                                                                eth_dst,
+                                                                "mask":
+                                                                eth_dst_mask}
+
     elif match[0] == "eth_type":
         match_dict["ethernet-match"] = {}
         match_dict["ethernet-match"]["ethernet-type"] = {"type":

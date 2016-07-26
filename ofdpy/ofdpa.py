@@ -192,9 +192,9 @@ class VLAN_VLAN_Filtering_Flow(VLAN_Flow):
         ofdpa_instance.send(mod)
 
 
-class Termination_MAC_IPv4_Multicast_MAC():
+class Termination_MAC_IPv4_Multicast_MAC_Flow():
     """
-    See table  63 in chapter 4.1.10 Termination MAC Flow Table.
+    See table 63 in chapter 4.1.10 Termination MAC Flow Table.
 
     Wildcard rule that recognizes all IPv4 multicast MAC addresses
     specified in RFC 1112 [39]. This must be ETH_DST = 01-00-5e-00-
@@ -229,6 +229,44 @@ class Termination_MAC_IPv4_Multicast_MAC():
                                 match=match, instructions=inst)
 
         ofdpa_instance.send(mod)
+
+
+class Termination_MAC_IPv4_Unicast_MAC_Flow():
+    """
+    See table 63 in chapter 4.1.10 Termination MAC Flow Table.
+
+    Used to identify an IPv4 router MAC address. Relative priority must
+    be assigned so as to be lower than any multicast MAC rule. Must
+    have a Goto-Table instruction specifying the Unicast Routing Flow
+    Table or the L3 Type Flow Table.
+    """
+
+    def __init__(self, ofdpa_instance, MAC_DST, IN_PORT=None, VLAN_VID=None, copy_controller=False):
+        match_dict = {'eth_dst': (MAC_DST, 0xFFFFFFFFFFFF), 'eth_type':0x0800}
+        if IN_PORT:
+            raise Exception('Currently not supported')
+            match_dict['in_phy_port'] = IN_PORT
+        if VLAN_VID:
+            match_dict['vlan_vid'] = VLAN_VID
+        match = parser.OFPMatch(**match_dict)
+        print match
+
+        inst = []
+        if copy_controller:
+            action_1 = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
+            inst_1 = parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                                  action_1)
+            inst.append(inst_1)
+
+        inst.append(parser.OFPInstructionGotoTable(UNICAST_ROUTING_FLOW_TABLE))
+
+        # Installing flows to Bridge table..
+        mod = parser.OFPFlowMod(datapath=ofdpa_instance.datapath,
+                                table_id=TERMINATION_MAC_FLOW_TABLE,
+                                match=match, instructions=inst)
+
+        ofdpa_instance.send(mod)
+
 
 class Bridging_Flow(object):
     def __init__(self, ofdpa_instance, group, inst, match,
