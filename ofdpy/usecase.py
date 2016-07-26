@@ -61,10 +61,10 @@ def ping(ofdpa_instance, dummy_vlan,
     groups = bridging(ofdpa_instance, dummy_vlan,
                       (mac_1, ofdpa_id_1),
                       (mac_2, ofdpa_id_2))
-    flood_group = ofdpa.L2_Flood_Group(ofdpa_instance, 0, groups)
-    ofdpa.Bridging_DLF_VLAN_Bridging_Flow(ofdpa_instance,
+    multicast_group = ofdpa.L2_Multicast_Group(ofdpa_instance, 0, groups)
+    ofdpa.Bridging_Multicast_VLAN_Bridging_Flow(ofdpa_instance,
                                           dummy_vlan,
-                                          flood_group,
+                                          multicast_group,
                                           copy_controller=False)
 
 

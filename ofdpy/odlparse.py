@@ -93,12 +93,12 @@ def convert_match(match):
         match_dict["vlan-match"]["vlan-id"] = vlan_dict
 
     elif match[0] == "eth_dst":
-        if len(match[1]) == 1:
+        if match[1].__class__ == tuple:
+            eth_dst = match[1][0]
+            eth_dst_mask = match[1][1]
+        else:
             eth_dst = match[1]
             eth_dst_mask = 'ff:ff:ff:ff:ff:ff'
-        else:
-            eth_dst =  match[1][0]
-            eth_dst_mask =  match[1][1]
 
         match_dict["ethernet-match"] = {}
         match_dict["ethernet-match"]["ethernet-destination"] = {"address":
