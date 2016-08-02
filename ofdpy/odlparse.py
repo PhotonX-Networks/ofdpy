@@ -300,12 +300,13 @@ class OpenDaylight:
                       "if len(sys.argv) > 1:\n",
                       "    dolist = [int(x) for x in sys.argv[1].split(',')]\n",
                       "else:\n",
-                      "    dolist = [i for i, __ in enumerate(urls)]\n\n",
-                      "for i,url in enumerate(urls):\n",
-                      "    if i in dolist:\n"])
+                      "    dolist = [i for i, __ in enumerate(urls)]\n\n"])
 
         with open("./ODL/send.py", 'a') as script:
-            bottom = [    "        data=open(str(i) + \".xml\").read()\n",
+            bottom = [    
+                          "for i,url in enumerate(urls):\n",
+                          "    if i in dolist:\n",
+                          "        data=open(str(i) + \".xml\").read()\n",
                           "        r = requests.put(url, data,\n",
                           "                         auth=('admin', 'admin'),\n",
                           "                         headers={'Accept':'application/xml',\n",
@@ -319,7 +320,8 @@ class OpenDaylight:
 
 
         with open("./ODL/remove.py", 'w') as script:
-            bottom = ["for i,url in enumerate(urls):\n",
+            bottom = ["urls.reverse()\n",
+                      "for i,url in enumerate(urls):\n",
                       "    if i in dolist:\n",
                       "        r = requests.delete(url,\n",
                       "                            auth=('admin', 'admin'),\n",
