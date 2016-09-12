@@ -77,7 +77,7 @@ def _remove_fake_datapath():
 
 
 class OFDPA():
-    def __init__(self, datapath=None, mode='Ryu', controller_ip='127.0.0.1', controller_port='8181', ofdpa_id=None, flow_start=None):
+    def __init__(self, datapath=None, mode='Ryu', controller_ip='127.0.0.1', controller_port='8181', ofdpa_id='openflow:55930', flow_start=None):
         self.mode = mode
         if self.mode == 'ODL':
             self.ODL_instance = odlparse.OpenDaylight(controller_ip, port=controller_port, node=ofdpa_id, flow_start=flow_start)
@@ -364,7 +364,7 @@ class Policy_ACL_Flow:
 
 
 class Policy_ACL_IPv4_VLAN_Flow(Policy_ACL_Flow):
-    def __init__(self, ofdpa_instance, group, IN_PORT=None, ETH_SRC=None, ETH_DST=None, VLAN_VID=None, IP_DSCP=None, priority=None):
+    def __init__(self, ofdpa_instance, group=None, IN_PORT=None, ETH_SRC=None, ETH_DST=None, VLAN_VID=None, IP_DSCP=None, priority=None, copy_controller=None ):
         __OFDPA_VERSION__ = '2.3.0.0'
         match_dict = {'eth_type': 0x0800}
         if IN_PORT:
@@ -378,10 +378,18 @@ class Policy_ACL_IPv4_VLAN_Flow(Policy_ACL_Flow):
         if IP_DSCP:
             match_dict['ip_dscp'] = IP_DSCP
         match = parser.OFPMatch(**match_dict)
+	inst = []
+        if copy_controller:
+            action = [parser.OFPActionOutput(ofproto.OFPP_CONTROLLER)]
+            inst.append(parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS,
+                                                     action))
 
-        actions = [parser.OFPActionGroup(group.encode_id())]
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS,
-                                             actions)]
+        if group:
+            action = [parser.OFPActionGroup(group.encode_id())]
+            inst.append(parser.OFPInstructionActions(ofproto.OFPIT_WRITE_ACTIONS,
+                                                     action))
+        if inst == []:
+            raise Exception('Empty instruction set')
         mod = parser.OFPFlowMod(datapath=ofdpa_instance.datapath,
                                 table_id=POLICY_ACL_FLOW_TABLE,
                                 match=match, instructions=inst, priority=priority)
