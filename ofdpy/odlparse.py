@@ -18,6 +18,7 @@ import shutil
 import os
 import logging
 import copy
+import sys
 
 logger = logging.getLogger(__name__)
 
@@ -72,7 +73,6 @@ def convert_matchs(matchs):
         except ValueError:
             matchs_list.append(match_dict)
         else:
-            print(matchs_list[index][match_dict.keys()[0]])
             matchs_list[index][match_dict.keys()[0]][match_dict[match_dict.keys()[0]].keys()[0]] = match_dict[match_dict.keys()[0]][match_dict[match_dict.keys(    )[0]].keys()[0]]
     logger.debug("decoded matchs\n" + str(matchs_list) + "\n")
     return matchs_list
@@ -94,17 +94,31 @@ def convert_match(match):
 
     elif match[0] == "eth_dst":
         if match[1].__class__ == tuple:
-            eth_dst = match[1][0]
-            eth_dst_mask = match[1][1]
+            eth = match[1][0]
+            eth_mask = match[1][1]
         else:
-            eth_dst = match[1]
-            eth_dst_mask = 'ff:ff:ff:ff:ff:ff'
+            eth = match[1]
+            eth_mask = 'ff:ff:ff:ff:ff:ff'
 
         match_dict["ethernet-match"] = {}
         match_dict["ethernet-match"]["ethernet-destination"] = {"address":
-                                                                eth_dst,
+                                                                eth,
                                                                 "mask":
-                                                                eth_dst_mask}
+                                                                eth_mask}
+    elif match[0] == "eth_src":
+        if match[1].__class__ == tuple:
+            eth = match[1][0]
+            eth_mask = match[1][1]
+        else:
+            eth = match[1]
+            eth_mask = 'ff:ff:ff:ff:ff:ff'
+
+        match_dict["ethernet-match"] = {}
+        match_dict["ethernet-match"]["ethernet-source"] = {"address":
+                                                                eth,
+                                                                "mask":
+                                                                eth_mask}
+
 
     elif match[0] == "eth_type":
         match_dict["ethernet-match"] = {}
@@ -187,15 +201,18 @@ def convert_buckets(buckets):
 
 
 class OpenDaylight:
-    def __init__(self, ip, node="openflow:55930", port="8181", xml_path=""):
+    folder = sys.argv[0].split('.')[0]
+    def __init__(self, ip, node="openflow:55930", port="8181", xml_path="", flow_start=None):
         self.ip = ip
         self.node = node
         self.port = port
         # All flows in ODL should have a unique ID, so we need to track IDs
         # used. This is the simpelest way to do this
-        self.highest_unused_id = 0
-        shutil.rmtree("./ODL", ignore_errors=True)
-        os.mkdir("./ODL")
+	if not flow_start:
+            flow_start = 0
+        self.highest_unused_id = flow_start
+        shutil.rmtree(os.path.join('.', self.folder), ignore_errors=True)
+        os.mkdir(os.path.join('.', self.folder))
         self.msgs = []
 
     def convert_msg(self, msg):
@@ -207,6 +224,7 @@ class OpenDaylight:
                          "priority":      msg.priority,
                          "table_id":      msg.table_id,
                          "hard-timeout":  msg.hard_timeout}
+            flow_dict = {k: v for k, v in flow_dict.iteritems() if v is not None}
 
             self.highest_unused_id += 1
 
@@ -267,7 +285,7 @@ class OpenDaylight:
 
         urlstr = []
         for i, msg in enumerate(self.msgs):
-            with open("./ODL/" + str(i) + ".xml", 'w') as outfile:
+            with open(os.path.join('.', self.folder, str(i) + ".xml"), 'w') as outfile:
                 #json.dump(entry , outfile, indent=4)
                 entry = self.convert_msg(msg)
                 xml = dicttoxml.dicttoxml(entry, attr_type=False, root=False)
@@ -302,7 +320,7 @@ class OpenDaylight:
                       "else:\n",
                       "    dolist = [i for i, __ in enumerate(urls)]\n\n"])
 
-        with open("./ODL/send.py", 'a') as script:
+        with open(os.path.join('.', self.folder, "send.py"), 'a') as script:
             bottom = [    
                           "for i,url in enumerate(urls):\n",
                           "    if i in dolist:\n",
@@ -319,7 +337,7 @@ class OpenDaylight:
                 script.write(line)
 
 
-        with open("./ODL/remove.py", 'w') as script:
+        with open(os.path.join('.', self.folder, "remove.py"), 'w') as script:
             bottom = ["urls.reverse()\n",
                       "for i,url in enumerate(urls):\n",
                       "    if i in dolist:\n",
