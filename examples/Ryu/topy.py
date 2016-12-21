@@ -29,9 +29,15 @@ from ryu.lib.packet import ethernet
 from ryu.lib.packet import ether_types
 
 from ryu.topology import event, switches
-from ryu.topology.api import get_switch, get_link
+from ryu.topology.api import get_switch, get_link, get_host
+import mpld3
 
+from IPython import embed
 import networkx as nx
+import matplotlib
+matplotlib.use('TkAgg')
+import matplotlib.pyplot as plt
+#plt.ion()
 
 from ofdpy import ofdpa
 from ofdpy import usecase
@@ -53,6 +59,8 @@ class SimpleSwitch(app_manager.RyuApp):
         self.no_of_nodes = 0
         self.no_of_links = 0
         self.i=0
+        self.graphfig, self.graphax = plt.subplots()
+        
 
     def add_flow(self, datapath, in_port, dst, actions):
         ofproto = datapath.ofproto
@@ -69,65 +77,57 @@ class SimpleSwitch(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
-        msg = ev.msg
-        datapath = msg.datapath
-        ofproto = datapath.ofproto
+        return
+        #msg = ev.msg
+        #datapath = msg.datapath
+        #ofproto = datapath.ofproto
 
-        pkt = packet.Packet(msg.data)
-        eth = pkt.get_protocol(ethernet.ethernet)
+        #pkt = packet.Packet(msg.data)
+        #eth = pkt.get_protocol(ethernet.ethernet)
 
-        if eth.ethertype == ether_types.ETH_TYPE_LLDP or eth.dst == '01:80:c2:00:00:0e':
-            # ignore lldp packet
-            print 'Ignoring'
-            return
-        dst = eth.dst
-        src = eth.src
+        #if eth.ethertype == ether_types.ETH_TYPE_LLDP or eth.dst == '01:80:c2:00:00:0e':
+        #    # ignore lldp packet
+        #    print 'Ignoring'
+        #    return
+        #dst = eth.dst
+        #src = eth.src
 
-        dpid = datapath.id
-        self.mac_to_port.setdefault(dpid, {})
+        #dpid = datapath.id
+        #self.mac_to_port.setdefault(dpid, {})
 
-        if 'in_port' in msg.match:
-            for f in msg.match.fields:
-                if f.header == ofproto_v1_3.OXM_OF_IN_PORT:
-                    in_port = f.value
-        self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
+        #if 'in_port' in msg.match:
+        #    for f in msg.match.fields:
+        #        if f.header == ofproto_v1_3.OXM_OF_IN_PORT:
+        #            in_port = f.value
+        #self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
 
-        # learn a mac address to avoid FLOOD next time.
+        ## learn a mac address to avoid FLOOD next time.
 
-        #if dst in self.mac_to_port[dpid]:
-        #    out_port = self.mac_to_port[dpid][dst]
-        #else:
-        #    out_port = ofproto.OFPP_FLOOD
+        ##if dst in self.mac_to_port[dpid]:
+        ##    out_port = self.mac_to_port[dpid][dst]
+        ##else:
+        ##    out_port = ofproto.OFPP_FLOOD
 
-        #actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+        ##actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
 
-        # install a flow to avoid packet_in next time
-        ofdpa_instance = ofdpa.OFDPA(ev.msg.datapath)
-            #ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, ofdpa_id_in, dummy_vlan)
-            #ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
-            #                                                     ofdpa_id_in,
-            #                                                     dummy_vlan)
-            # Create an l2 output group that pops the vlan tag on leaving the switch
-        try:
-            self.mac_to_port[dpid][src]
-        except KeyError:
-            self.mac_to_port[dpid][src] = in_port
+        ## install a flow to avoid packet_in next time
+        #ofdpa_instance = ofdpa.OFDPA(ev.msg.datapath)
+        #try:
+        #    self.mac_to_port[dpid][src]
+        #except KeyError:
+        #    self.mac_to_port[dpid][src] = in_port
 
-            l2_interface_group = ofdpa.L2_Interface_Group(ofdpa_instance,
-                                                          in_port,
-                                                          self.dummy_vlan,
-                                                          pop_vlan=True)
-            # Bridge packets with a dest mac_out to the previously specified port
-            ofdpa.Bridging_Unicast_VLAN_Bridging_Flow(ofdpa_instance,
-                                                          self.dummy_vlan,
-                                                          src,
-                                                          l2_interface_group)
+        #    l2_interface_group = ofdpa.L2_Interface_Group(ofdpa_instance,
+        #                                                  in_port,
+        #                                                  self.dummy_vlan,
+        #                                                  pop_vlan=True)
+        #    # Bridge packets with a dest mac_out to the previously specified port
+        #    ofdpa.Bridging_Unicast_VLAN_Bridging_Flow(ofdpa_instance,
+        #                                                  self.dummy_vlan,
+        #                                                  src,
+        #                                                  l2_interface_group)
 
-            #self.add_flow(datapath, msg.in_port, dst, actions)
-
-        #data = None
-        #if msg.buffer_id == ofproto.OFP_NO_BUFFER:
-        #    data = msg.data
+        #    #self.add_flow(datapath, msg.in_port, dst, actions)
 
 
     @set_ev_cls(ofp_event.EventOFPPortStatus, MAIN_DISPATCHER)
@@ -179,15 +179,28 @@ class SimpleSwitch(app_manager.RyuApp):
         self.switches[ev.msg.datapath.id][dpid] = port_ids
         self.logger.debug('OFPPortDescStatsReply received: %s', port_ids)
 
-    @set_ev_cls(event.EventSwitchEnter)
-    def get_topology_data(self, ev):
-        switch_list = get_switch(self, None)
+    @set_ev_cls(event.EventSwitchEnter, event.EventSwitchLeave, event.EventHostAdd)
+    def get_switch_topology(self, ev):
+        switch_list = get_switch(self.topology_api_app, None)
         switches=[switch.dp.id for switch in switch_list]
-        print switches
-        self.ls(self.topology_api_app)
-        #links_list = get_link(self, None)
         links_list = get_link(self.topology_api_app, None)
-        print links_list
         links=[(link.src.dpid,link.dst.dpid,{'port':link.src.port_no}) for link in links_list]
-        print links
-
+        host_list = get_host(self.topology_api_app, None)
+        print self.ls(host_list[0])
+        #hosts=[(,{'port':link.src.port_no}) for link in links_list]
+        self.net.add_nodes_from(switches)
+        #self.net.add_nodes_from(hosts)
+        self.net.add_edges_from(links)
+        print switch_list
+        print links_list
+        #print self.net.nodes()
+        #print self.net.edges()
+        self.graphax.clear()
+        nx.draw_spring(self.net, ax=self.graphax, with_labels=True)
+        #labels=nx.draw_networkx_labels(self.net,pos=nx.spring_layout(self.net), ax=self.graphax)
+        #edlabels=nx.draw_networkx_edge_labels(self.net,pos=nx.spring_layout(self.net), ax=self.graphax)
+        #plt.draw()
+        mpld3.display(self.graphfig)
+        html = mpld3.fig_to_html(self.graphfig)
+        with open('/var/www/html/index.html', 'w') as file:
+            file.write(html)
