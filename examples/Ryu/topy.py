@@ -77,19 +77,26 @@ class SimpleSwitch(app_manager.RyuApp):
 
     @set_ev_cls(ofp_event.EventOFPPacketIn, MAIN_DISPATCHER)
     def packet_in_handler(self, ev):
-        return
-        #msg = ev.msg
-        #datapath = msg.datapath
-        #ofproto = datapath.ofproto
+        msg = ev.msg
 
-        #pkt = packet.Packet(msg.data)
-        #eth = pkt.get_protocol(ethernet.ethernet)
+        try:
+            switches.LLDPPacket.lldp_parse(msg.data)
+        except switches.LLDPPacket.LLDPUnknownFormat as e:
+            if str(e) != switches.LLDPPacket.LLDPUnknownFormat.message: 
+                return
+        else:
+            # ignore lldp packet
+            return
+        print 'non-LLDP packet!'
 
-        #if eth.ethertype == ether_types.ETH_TYPE_LLDP or eth.dst == '01:80:c2:00:00:0e':
-        #    # ignore lldp packet
-        #    print 'Ignoring'
-        #    return
-        #dst = eth.dst
+        datapath = msg.datapath
+        ofproto = datapath.ofproto
+
+        pkt = packet.Packet(msg.data)
+        eth = pkt.get_protocol(ethernet.ethernet)
+        dst = eth.dst
+        if not dst in self.net:
+            print 'Destination ' + str(dst) + ' unknown'
         #src = eth.src
 
         #dpid = datapath.id
@@ -150,56 +157,57 @@ class SimpleSwitch(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         # Initialize an ofdpa instance
-        ofdpa_instance = ofdpa.OFDPA(ev.msg.datapath)
+        dp = ev.msg.datapath
         try:
-            self.switches[ev.msg.datapath.id]['ofdpa'] = ofdpa_instance
+            self.switches[dp.id]
         except KeyError:
-            self.switches[ev.msg.datapath.id] = {}
-            self.switches[ev.msg.datapath.id]['ofdpa'] = ofdpa_instance
+            self.switches[dp.id] = {}
+        else:
+            raise Exception('Switch dpid already registered!')
+        self.switches[dp.id]['ofdpa'] = ofdpa_instance = ofdpa.OFDPA(dp)
         # Ask how many ports are available
         req = ofdpa.parser.OFPPortDescStatsRequest(
             ofdpa_instance.datapath, 0)
         ofdpa_instance.datapath.send_msg(req)
 
-    # If a switch replies to a port request
-    @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
+    # If a switch replies
+    @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, CONFIG_DISPATCHER)
     def port_desc_stats_reply_handler(self, ev):
-        recieved_datapath = ev.msg.datapath
-        # Check if the response is from the device we asked it to
-        dpid = ev.msg.datapath.id
-        port_ids = []
-        ofdpa_instance = self.switches[ev.msg.datapath.id]['ofdpa']
+        dp = ev.msg.datapath
+        ofdpa_instance = self.switches[dp.id]['ofdpa']
+        # Allow traffic on all ports
         self.dummy_vlan = 10
         for p in ev.msg.body:
-            port_ids.append(p.port_no)
-            ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, p.port_no, self.dummy_vlan )
+            #port_ids.append(p.port_no)
+            ofdpa.VLAN_VLAN_Filtering_Flow(ofdpa_instance, p.port_no, self.dummy_vlan)
             ofdpa.VLAN_Untagged_Packet_Port_VLAN_Assignment_Flow(ofdpa_instance,
                                                                  p.port_no,
                                                                  self.dummy_vlan)
-        self.switches[ev.msg.datapath.id][dpid] = port_ids
-        self.logger.debug('OFPPortDescStatsReply received: %s', port_ids)
 
-    @set_ev_cls(event.EventSwitchEnter, event.EventSwitchLeave, event.EventHostAdd)
+
+    @set_ev_cls([event.EventSwitchEnter, event.EventSwitchLeave, event.EventHostAdd])
     def get_switch_topology(self, ev):
+        # Rebuild topology
+        self.net=nx.DiGraph()
         switch_list = get_switch(self.topology_api_app, None)
         switches=[switch.dp.id for switch in switch_list]
         links_list = get_link(self.topology_api_app, None)
         links=[(link.src.dpid,link.dst.dpid,{'port':link.src.port_no}) for link in links_list]
-        host_list = get_host(self.topology_api_app, None)
-        print self.ls(host_list[0])
-        #hosts=[(,{'port':link.src.port_no}) for link in links_list]
         self.net.add_nodes_from(switches)
-        #self.net.add_nodes_from(hosts)
         self.net.add_edges_from(links)
-        print switch_list
-        print links_list
-        #print self.net.nodes()
-        #print self.net.edges()
+        host_list = get_host(self.topology_api_app, None)
+        hosts = [host.mac for host in host_list]
+        host_to_switch = [(host.mac, host.port.dpid) for host in host_list]
+        switch_to_host = [(host.port.dpid, host.mac, {'port':host.port.port_no}) for host in host_list]
+        self.net.add_nodes_from(hosts)
+        self.net.add_edges_from(host_to_switch)
+        self.net.add_edges_from(switch_to_host)
+        #print switch_list
+        #print links_list
+        self.draw_graph()
+    def draw_graph(self):
         self.graphax.clear()
         nx.draw_spring(self.net, ax=self.graphax, with_labels=True)
-        #labels=nx.draw_networkx_labels(self.net,pos=nx.spring_layout(self.net), ax=self.graphax)
-        #edlabels=nx.draw_networkx_edge_labels(self.net,pos=nx.spring_layout(self.net), ax=self.graphax)
-        #plt.draw()
         mpld3.display(self.graphfig)
         html = mpld3.fig_to_html(self.graphfig)
         with open('/var/www/html/index.html', 'w') as file:
