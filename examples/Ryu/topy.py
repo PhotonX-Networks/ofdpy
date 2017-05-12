@@ -87,7 +87,6 @@ class SimpleSwitch(app_manager.RyuApp):
         else:
             # ignore lldp packet
             return
-        print 'non-LLDP packet!'
 
         datapath = msg.datapath
         ofproto = datapath.ofproto
@@ -95,27 +94,13 @@ class SimpleSwitch(app_manager.RyuApp):
         pkt = packet.Packet(msg.data)
         eth = pkt.get_protocol(ethernet.ethernet)
         dst = eth.dst
+        src = eth.src
+        if not src in self.net:
+            raise Exception('Could not determine path. Source' + str(src) + ' unknown')
         if not dst in self.net:
-            print 'Destination ' + str(dst) + ' unknown'
-        #src = eth.src
-
-        #dpid = datapath.id
-        #self.mac_to_port.setdefault(dpid, {})
-
-        #if 'in_port' in msg.match:
-        #    for f in msg.match.fields:
-        #        if f.header == ofproto_v1_3.OXM_OF_IN_PORT:
-        #            in_port = f.value
-        #self.logger.info("packet in %s %s %s %s", dpid, src, dst, in_port)
-
-        ## learn a mac address to avoid FLOOD next time.
-
-        ##if dst in self.mac_to_port[dpid]:
-        ##    out_port = self.mac_to_port[dpid][dst]
-        ##else:
-        ##    out_port = ofproto.OFPP_FLOOD
-
-        ##actions = [datapath.ofproto_parser.OFPActionOutput(out_port)]
+            raise Exception('Could not determine path. Destination ' + str(dst) + ' unknown')
+        path = nx.shortest_path(self.net, src, dst)
+        print path
 
         ## install a flow to avoid packet_in next time
         #ofdpa_instance = ofdpa.OFDPA(ev.msg.datapath)
